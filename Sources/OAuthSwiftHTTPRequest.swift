@@ -13,6 +13,7 @@ let kHTTPHeaderContentType = "Content-Type"
 open class OAuthSwiftHTTPRequest: NSObject, OAuthSwiftRequestHandle {
 
     public typealias SuccessHandler = (_ response: OAuthSwiftResponse) -> Void
+    public typealias SevenPassuccessHandler = (_ data: Data, _ response: HTTPURLResponse) -> Void
     public typealias FailureHandler = (_ error: OAuthSwiftError) -> Void
 
     // HTTP request method
