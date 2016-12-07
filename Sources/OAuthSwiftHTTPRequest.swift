@@ -13,7 +13,7 @@ let kHTTPHeaderContentType = "Content-Type"
 open class OAuthSwiftHTTPRequest: NSObject, OAuthSwiftRequestHandle {
 
     public typealias SuccessHandler = (_ response: OAuthSwiftResponse) -> Void
-    public typealias SevenPassuccessHandler = (_ data: Data, _ response: HTTPURLResponse) -> Void
+    public typealias SevenPassSuccessHandler = (_ data: Data, _ response: HTTPURLResponse) -> Void
     public typealias FailureHandler = (_ error: OAuthSwiftError) -> Void
 
     // HTTP request method
@@ -183,7 +183,7 @@ open class OAuthSwiftHTTPRequest: NSObject, OAuthSwiftRequestHandle {
     }
     
     // MARK: 7PASS Request
-    func start(success: SevenPassuccessHandler?, failure: FailureHandler?) {
+    func start(success: SevenPassSuccessHandler?, failure: FailureHandler?) {
         guard request == nil else { return } // Don't start the same request twice!
         
         let successHandler = success
