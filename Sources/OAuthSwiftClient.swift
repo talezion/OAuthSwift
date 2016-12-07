@@ -89,6 +89,52 @@ open class OAuthSwiftClient: NSObject {
         }
         return nil
     }
+    
+    // MARK: 7PASS Client methods
+    @discardableResult
+    open func getSevenPass(_ urlString: String, parameters: OAuthSwift.Parameters = [:], headers: OAuthSwift.Headers? = nil, success: OAuthSwiftHTTPRequest.SevenPassuccessHandler?, failure: OAuthSwiftHTTPRequest.FailureHandler?) -> OAuthSwiftRequestHandle? {
+        return self.requestSevenPass(urlString, method: .GET, parameters: parameters, headers: headers, success: success, failure: failure)
+    }
+    
+    @discardableResult
+    open func postSevenPass(_ urlString: String, parameters: OAuthSwift.Parameters = [:], headers: OAuthSwift.Headers? = nil, body: Data? = nil, success: OAuthSwiftHTTPRequest.SevenPassuccessHandler?, failure: OAuthSwiftHTTPRequest.FailureHandler?) -> OAuthSwiftRequestHandle? {
+        return self.requestSevenPass(urlString, method: .POST, parameters: parameters, headers: headers, body: body, success: success, failure: failure)
+    }
+    
+    @discardableResult
+    open func putSevenPass(_ urlString: String, parameters: OAuthSwift.Parameters = [:], headers: OAuthSwift.Headers? = nil, body: Data? = nil, success: OAuthSwiftHTTPRequest.SevenPassuccessHandler?, failure: OAuthSwiftHTTPRequest.FailureHandler?) -> OAuthSwiftRequestHandle? {
+        return self.requestSevenPass(urlString, method: .PUT, parameters: parameters, headers: headers, body: body, success: success, failure: failure)
+    }
+    
+    @discardableResult
+    open func deleteSevenPass(_ urlString: String, parameters: OAuthSwift.Parameters = [:], headers: OAuthSwift.Headers? = nil, success: OAuthSwiftHTTPRequest.SevenPassuccessHandler?, failure: OAuthSwiftHTTPRequest.FailureHandler?) -> OAuthSwiftRequestHandle? {
+        return self.requestSevenPass(urlString, method: .DELETE, parameters: parameters, headers: headers,success: success, failure: failure)
+    }
+    
+    @discardableResult
+    open func patchSevenPass(_ urlString: String, parameters: OAuthSwift.Parameters = [:], headers: OAuthSwift.Headers? = nil, success: OAuthSwiftHTTPRequest.SevenPassuccessHandler?, failure: OAuthSwiftHTTPRequest.FailureHandler?) -> OAuthSwiftRequestHandle? {
+        return self.requestSevenPass(urlString, method: .PATCH, parameters: parameters, headers: headers,success: success, failure: failure)
+    }
+    
+    @discardableResult
+    open func requestSevenPass(_ urlString: String, method: OAuthSwiftHTTPRequest.Method, parameters: OAuthSwift.Parameters = [:], headers: OAuthSwift.Headers? = nil, body: Data? = nil, checkTokenExpiration: Bool = true, success: OAuthSwiftHTTPRequest.SevenPassuccessHandler?, failure: OAuthSwiftHTTPRequest.FailureHandler?) -> OAuthSwiftRequestHandle? {
+        
+        if checkTokenExpiration && self.credential.isTokenExpired() {
+            failure?(OAuthSwiftError.tokenExpired(error: nil))
+            return nil
+        }
+        
+        guard let _ = URL(string: urlString) else {
+            failure?(OAuthSwiftError.encodingError(urlString: urlString))
+            return nil
+        }
+        
+        if let request = makeRequest(urlString, method: method, parameters: parameters, headers: headers, body: body) {
+            request.start(success: success, failure: failure)
+            return request
+        }
+        return nil
+    }
 
     open func makeRequest(_ request: URLRequest) -> OAuthSwiftHTTPRequest {
         let request = OAuthSwiftHTTPRequest(request: request, paramsLocation: self.paramsLocation, sessionFactory: self.sessionFactory)

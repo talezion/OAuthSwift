@@ -181,6 +181,130 @@ open class OAuthSwiftHTTPRequest: NSObject, OAuthSwiftRequestHandle {
             #endif
         }
     }
+    
+    // MARK: 7PASS Request
+    func start(success: SevenPassuccessHandler?, failure: FailureHandler?) {
+        guard request == nil else { return } // Don't start the same request twice!
+        
+        let successHandler = success
+        let failureHandler = failure
+        
+        do {
+            self.request = try self.makeRequest()
+        } catch let error as NSError {
+            failureHandler?(OAuthSwiftError.requestCreation(message: error.localizedDescription))
+            self.request = nil
+            return
+        }
+        
+        OAuthSwiftHTTPRequest.executionContext {
+            // perform lock here to prevent cancel calls on another thread while creating the request
+            objc_sync_enter(self)
+            defer { objc_sync_exit(self) }
+            if self.cancelRequested {
+                return
+            }
+            
+            self.session = self.config.sessionFactory.build()
+            let usedRequest = self.request!
+            self.task = self.session.dataTask(with: usedRequest) { (data, resp, error) in
+                
+                #if os(iOS)
+                    #if !OAUTH_APP_EXTENSIONS
+                        UIApplication.shared.isNetworkActivityIndicatorVisible = false
+                    #endif
+                #endif
+                
+                // MARK: failure error returned by server
+                if let error = error {
+                    var oauthError: OAuthSwiftError = .requestError(error: error, request: usedRequest)
+                    let nsError = error as NSError
+                    if nsError.code == NSURLErrorCancelled {
+                        oauthError = .cancelled
+                    }
+                    else if nsError.isExpiredToken {
+                        oauthError = .tokenExpired(error: error)
+                    }
+                    
+                    failureHandler?(oauthError)
+                    return
+                }
+                
+                // MARK: failure no response or data returned by server
+                guard let response = resp as? HTTPURLResponse, let responseData = data else {
+                    let badRequestCode = 400
+                    let localizedDescription = OAuthSwiftHTTPRequest.descriptionForHTTPStatus(badRequestCode, responseString: "")
+                    var userInfo : [AnyHashable : Any] = [
+                        NSLocalizedDescriptionKey: localizedDescription
+                    ]
+                    if let response = resp { // there is only no data
+                        userInfo[OAuthSwiftError.ResponseKey] = response
+                    }
+                    if let response = resp as? HTTPURLResponse {
+                        userInfo["Response-Headers"] = response.allHeaderFields
+                    }
+                    let error = NSError(domain: OAuthSwiftError.Domain, code: badRequestCode, userInfo: userInfo)
+                    failureHandler?(.requestError(error:error, request: usedRequest))
+                    return
+                }
+                
+                // MARK: failure code > 400
+                guard response.statusCode < 400 else {
+                    var localizedDescription = String()
+                    let responseString = String(data: responseData, encoding: OAuthSwiftDataEncoding)
+                    
+                    // Try to get error information from data as json
+                    let responseJSON = try? JSONSerialization.jsonObject(with: responseData, options: .mutableContainers)
+                    if let responseJSON = responseJSON as? OAuthSwift.Parameters {
+                        if let code = responseJSON["error"] as? String, let description = responseJSON["error_description"] as? String {
+                            
+                            localizedDescription = NSLocalizedString("\(code) \(description)", comment: "")
+                            if code == "authorization_pending" {
+                                failureHandler?(.authorizationPending)
+                                return
+                            }
+                        }
+                    }
+                    else {
+                        localizedDescription = OAuthSwiftHTTPRequest.descriptionForHTTPStatus(response.statusCode, responseString: String(data: responseData, encoding: OAuthSwiftDataEncoding)!)
+                    }
+                    
+                    var userInfo: [AnyHashable : Any] = [
+                        NSLocalizedDescriptionKey: localizedDescription,
+                        "Response-Headers": response.allHeaderFields,
+                        OAuthSwiftError.ResponseKey: response,
+                        OAuthSwiftError.ResponseDataKey: responseData
+                    ]
+                    if let string = responseString {
+                        userInfo["Response-Body"] = string
+                    }
+                    if let urlString = response.url?.absoluteString {
+                        userInfo[NSURLErrorFailingURLErrorKey] = urlString
+                    }
+                    
+                    let error = NSError(domain: NSURLErrorDomain, code: response.statusCode, userInfo: userInfo)
+                    if error.isExpiredToken {
+                        failureHandler?(.tokenExpired(error: error))
+                    }
+                    else {
+                        failureHandler?(.requestError(error: error, request: usedRequest))
+                    }
+                    return
+                }
+                
+                // MARK: success
+                successHandler?(responseData, response)
+            }
+            self.task?.resume()
+            self.session.finishTasksAndInvalidate()
+            
+            #if os(iOS)
+                #if !OAUTH_APP_EXTENSIONS
+                    UIApplication.shared.isNetworkActivityIndicatorVisible = self.config.sessionFactory.isNetworkActivityIndicatorVisible
+                #endif
+            #endif
+        }
+    }
 
     open func cancel() {
         // perform lock here to prevent cancel calls on another thread while creating the request

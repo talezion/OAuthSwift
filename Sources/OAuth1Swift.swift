@@ -117,9 +117,8 @@ open class OAuth1Swift: OAuthSwift {
         var parameters =  Dictionary<String, Any>()
         parameters["oauth_callback"] = callbackURL.absoluteString
         
-        if let handle = self.client.post(
-            self.requestTokenUrl, parameters: parameters,
-            success: { [weak self] response in
+        
+        if let handle = self.client.post( self.requestTokenUrl, parameters: parameters, success: { [weak self] response in
                 guard let this = self else { OAuthSwift.retainError(failure); return }
                 let parameters = response.string?.parametersFromQueryString ?? [:]
                 if let oauthToken = parameters["oauth_token"] {
@@ -150,6 +149,57 @@ open class OAuth1Swift: OAuthSwift {
                     this.client.credential.oauthToken = oauthToken.safeStringByRemovingPercentEncoding
                 }
                 if let oauthTokenSecret = parameters["oauth_token_secret"] {
+                    this.client.credential.oauthTokenSecret = oauthTokenSecret.safeStringByRemovingPercentEncoding
+                }
+                success(this.client.credential, response, parameters)
+            }, failure: failure
+            ) {
+            self.putHandle(handle, withKey: UUID().uuidString)
+        }
+    }
+    
+    //MARK: SevenPass request
+    
+    // 1. Request token
+    func postOAuthRequestTokenSevenPass(callbackURL: URL, success: @escaping SevenPassTokenSuccessHandler, failure: FailureHandler?) {
+        var parameters =  Dictionary<String, Any>()
+        parameters["oauth_callback"] = callbackURL.absoluteString
+        
+        if let handle = self.client.postSevenPass(
+            self.requestTokenUrl, parameters: parameters,
+            success: { [weak self] data, response in
+                guard let this = self else { OAuthSwift.retainError(failure); return }
+                let responseString = String(data: data, encoding: String.Encoding.utf8)!
+                let parameters = responseString.parametersFromQueryString
+                if let oauthToken=parameters["oauth_token"] {
+                    this.client.credential.oauthToken = oauthToken.safeStringByRemovingPercentEncoding
+                }
+                if let oauthTokenSecret=parameters["oauth_token_secret"] {
+                    this.client.credential.oauthTokenSecret = oauthTokenSecret.safeStringByRemovingPercentEncoding
+                }
+                success(this.client.credential, response, parameters)
+            }, failure: failure
+            ) {
+            self.putHandle(handle, withKey: UUID().uuidString)
+        }
+    }
+    
+    // 3. Get Access token
+    func postOAuthAccessTokenWithRequestTokenSevenPass(success: @escaping SevenPassTokenSuccessHandler, failure: FailureHandler?) {
+        var parameters = Dictionary<String, Any>()
+        parameters["oauth_token"] = self.client.credential.oauthToken
+        parameters["oauth_verifier"] = self.client.credential.oauthVerifier
+        
+        if let handle = self.client.postSevenPass(
+            self.accessTokenUrl, parameters: parameters,
+            success: { [weak self] data, response in
+                guard let this = self else { OAuthSwift.retainError(failure); return }
+                let responseString = String(data: data, encoding: String.Encoding.utf8)!
+                let parameters = responseString.parametersFromQueryString
+                if let oauthToken=parameters["oauth_token"] {
+                    this.client.credential.oauthToken = oauthToken.safeStringByRemovingPercentEncoding
+                }
+                if let oauthTokenSecret=parameters["oauth_token_secret"] {
                     this.client.credential.oauthTokenSecret = oauthTokenSecret.safeStringByRemovingPercentEncoding
                 }
                 success(this.client.credential, response, parameters)
